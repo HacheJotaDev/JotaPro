@@ -1,0 +1,26 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model NetflixEmail {
+  id          String   @id @default(cuid())
+  messageId   String   @unique
+  from        String
+  subject     String
+  bodyText    String?
+  bodyHtml    String?
+  code        String?
+  link        String?
+  emailType   String   @default("other") // verification, geo_confirmation, login_alert, other
+  receivedAt  DateTime
+  fetchedAt   DateTime @default(now())
+  isRead      Boolean  @default(false)
+}
