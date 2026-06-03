@@ -41,7 +41,7 @@ interface NetflixEmail {
   bodyHtml: string;
   code: string | null;
   link: string | null;
-  emailType: 'verification' | 'geo_confirmation' | 'login_alert' | 'other';
+  emailType: 'verification' | 'geo_confirmation' | 'home_confirmation' | 'login_alert' | 'other';
   receivedAt: string;
   fetchedAt: string;
   isRead: boolean;
@@ -174,7 +174,7 @@ function EmailCard({ email, onMarkRead }: { email: NetflixEmail; onMarkRead: (id
   const typeConfig = {
     verification: {
       icon: Key,
-      label: 'Código de Verificación',
+      label: 'Código de Inicio de Sesión',
       color: 'from-red-500 to-red-700',
       badgeColor: 'bg-red-500/10 text-red-400 border-red-500/20',
       iconBg: 'bg-red-500/10',
@@ -182,11 +182,19 @@ function EmailCard({ email, onMarkRead }: { email: NetflixEmail; onMarkRead: (id
     },
     geo_confirmation: {
       icon: Globe,
-      label: 'Confirmación de Ubicación',
+      label: 'Código de Acceso Temporal',
       color: 'from-amber-500 to-orange-600',
       badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
       iconBg: 'bg-amber-500/10',
       iconColor: 'text-amber-400',
+    },
+    home_confirmation: {
+      icon: MapPin,
+      label: 'Confirmar Hogar con Netflix',
+      color: 'from-emerald-500 to-green-600',
+      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      iconBg: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-400',
     },
     login_alert: {
       icon: Smartphone,
@@ -318,15 +326,21 @@ function EmailCard({ email, onMarkRead }: { email: NetflixEmail; onMarkRead: (id
             {/* Link Display */}
             {email.link && (
               <div className="mt-3 flex items-center gap-2 bg-gray-800/40 rounded-lg p-3 border border-gray-700/30">
-                <ExternalLink className="w-4 h-4 text-amber-400 shrink-0" />
+                <ExternalLink className={`w-4 h-4 shrink-0 ${
+                  email.emailType === 'home_confirmation' ? 'text-emerald-400' : 'text-amber-400'
+                }`} />
                 <a
                   href={email.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-sm text-amber-400 hover:text-amber-300 truncate underline underline-offset-2"
+                  className={`text-sm truncate underline underline-offset-2 ${
+                    email.emailType === 'home_confirmation'
+                      ? 'text-emerald-400 hover:text-emerald-300'
+                      : 'text-amber-400 hover:text-amber-300'
+                  }`}
                 >
-                  Abrir enlace de confirmación
+                  {email.emailType === 'home_confirmation' ? 'Sí, la envié yo → Confirmar' : 'Abrir enlace de confirmación'}
                 </a>
               </div>
             )}
@@ -363,7 +377,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastFetch, setLastFetch] = useState<string>('');
-  const [filter, setFilter] = useState<'all' | 'verification' | 'geo_confirmation' | 'login_alert'>('all');
+  const [filter, setFilter] = useState<'all' | 'verification' | 'geo_confirmation' | 'home_confirmation' | 'login_alert'>('all');
   const [hours, setHours] = useState(48);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [notifications, setNotifications] = useState(true);
@@ -472,6 +486,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const unreadCount = emails.filter(e => !e.isRead).length;
   const codesCount = emails.filter(e => e.code).length;
   const geoCount = emails.filter(e => e.emailType === 'geo_confirmation').length;
+  const homeCount = emails.filter(e => e.emailType === 'home_confirmation').length;
 
   const handleLogout = () => {
     localStorage.removeItem('jotacode_token');
@@ -599,7 +614,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         )}
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <Card className="bg-gray-900/60 border-gray-800">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -636,7 +651,21 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-white">{geoCount}</p>
-                  <p className="text-xs text-gray-500">Geolocaliz.</p>
+                  <p className="text-xs text-gray-500">Acceso Temp.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/60 border-gray-800">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white">{homeCount}</p>
+                  <p className="text-xs text-gray-500">Hogar</p>
                 </div>
               </div>
             </CardContent>
@@ -663,7 +692,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             {[
               { key: 'all' as const, label: 'Todos', count: emails.length },
               { key: 'verification' as const, label: 'Códigos', count: emails.filter(e => e.emailType === 'verification').length },
-              { key: 'geo_confirmation' as const, label: 'Geolocalización', count: emails.filter(e => e.emailType === 'geo_confirmation').length },
+              { key: 'geo_confirmation' as const, label: 'Acceso Temporal', count: emails.filter(e => e.emailType === 'geo_confirmation').length },
+              { key: 'home_confirmation' as const, label: 'Hogar', count: emails.filter(e => e.emailType === 'home_confirmation').length },
               { key: 'login_alert' as const, label: 'Alertas', count: emails.filter(e => e.emailType === 'login_alert').length },
             ].map(f => (
               <Button

@@ -20,7 +20,7 @@ model NetflixEmail {
   bodyHtml    String?
   code        String?
   link        String?
-  emailType   String   @default("other") // verification, geo_confirmation, login_alert, other
+  emailType   String   @default("other") // verification, geo_confirmation, home_confirmation, login_alert, other
   receivedAt  DateTime
   fetchedAt   DateTime @default(now())
   isRead      Boolean  @default(false)

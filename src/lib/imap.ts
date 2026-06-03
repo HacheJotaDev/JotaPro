@@ -16,41 +16,49 @@ export interface ParsedEmail {
   bodyHtml: string;
   code: string | null;
   link: string | null;
-  emailType: 'verification' | 'geo_confirmation' | 'login_alert' | 'other';
+  emailType: 'verification' | 'geo_confirmation' | 'home_confirmation' | 'login_alert' | 'other';
   receivedAt: Date;
 }
 
-const NETFLIX_SENDERS = [
-  'info@mailer.netflix.com',
-  'info@netflix.com',
-  'no-reply@netflix.com',
-  'help@netflix.com',
-  'info@mailer.netflix.com',
-  'notification@netflix.com',
-];
-
 function isNetflixEmail(from: string): boolean {
   const lower = from.toLowerCase();
-  return NETFLIX_SENDERS.some(sender => lower.includes(sender)) || lower.includes('netflix');
+  return lower.includes('netflix');
 }
 
-function extractCode(text: string): string | null {
-  // Netflix verification codes are typically 4-8 digit numbers
-  // We look for explicit patterns that indicate a verification code
+function extractCode(text: string, subject: string): string | null {
+  const combined = (subject + ' ' + text).toLowerCase();
+  
+  // NEVER extract codes from "change account" / "cambiar cuenta" / password change emails
+  if (
+    combined.includes('cambiar la información de tu cuenta') ||
+    combined.includes('change your account') ||
+    combined.includes('cambia tu contraseña') ||
+    combined.includes('change your password') ||
+    combined.includes('actualizar tu contraseña') ||
+    combined.includes('update your password')
+  ) {
+    return null;
+  }
+
+  // Netflix sign-in codes are typically 4 digits (sometimes 6)
+  // "Ingresa este código para iniciar sesión" -> 4 digit code
+  // "Tu código de verificación" for account changes -> 6 digits (SKIP)
+  
   const patterns = [
-    // Explicit code patterns with context
-    /c[oó]digo[:\s]*(\d{4,8})/i,
-    /code[:\s]*(\d{4,8})/i,
-    /verification[:\s]*(\d{4,8})/i,
-    /PIN[:\s]*(\d{4,8})/i,
-    /(\d{4,8})\s*(?:is your|es tu|es su|verification|c[oó]digo)/i,
-    /enter[:\s]*(\d{4,8})/i,
-    /use[:\s]*(\d{4,8})/i,
-    /(?:your|tu|su)\s+(?:code|c[oó]digo|PIN)[:\s]*(\d{4,8})/i,
-    // Netflix specific: code appears in a line by itself or with specific context
-    /(?:verify|verificar|confirm|confirmar)[^\n]*(\d{4,8})/i,
-    // Standalone code on its own line (common in Netflix emails)
-    /(?:^|\n)\s*(\d{6})\s*(?:\n|$)/m,
+    // Spanish: "Ingresa este código para iniciar sesión\n4973"
+    /ingresa este c[oó]digo[^\n]*\n\s*(\d{4})\s*\n/i,
+    // "código de verificación: 1234" or "código: 1234"
+    /c[oó]digo[:\s]+(\d{4,6})/i,
+    // English: "Enter this code to sign in\n4973"  
+    /enter this code[^\n]*\n\s*(\d{4})\s*\n/i,
+    /code[:\s]+(\d{4,6})/i,
+    // "verification code: 123456"
+    /verification[:\s]*(\d{4,6})/i,
+    /PIN[:\s]*(\d{4,6})/i,
+    // Code on its own line (common format)
+    /(?:^|\n)\s*(\d{4})\s*(?:\n|$)/m,
+    // Your code is / tu código es
+    /(?:your code is|tu c[oó]digo es)[:\s]*(\d{4,6})/i,
   ];
 
   for (const pattern of patterns) {
@@ -60,21 +68,42 @@ function extractCode(text: string): string | null {
   return null;
 }
 
-function extractLink(html: string): string | null {
-  // Netflix confirmation/geo links
+function extractLink(html: string, subject: string): string | null {
+  const combined = (subject + ' ' + html).toLowerCase();
+
+  // NEVER extract links from account change emails
+  if (
+    combined.includes('cambiar la información de tu cuenta') ||
+    combined.includes('change your account') ||
+    combined.includes('cambia tu contraseña') ||
+    combined.includes('change your password')
+  ) {
+    return null;
+  }
+
+  // Netflix confirmation/action links
   const patterns = [
+    // "Obtener código" link (temp access / travel)
+    /href="(https:\/\/www\.netflix\.com\/[^"]*(?:tempaccess|temp_access|travel|trave|device)[^"]*)"/i,
+    // "Sí, la envié yo" / confirm home link
+    /href="(https:\/\/www\.netflix\.com\/[^"]*(?:confirmhome|confirm_home|homeconfirmation|home_confirmation|approve)[^"]*)"/i,
+    // General confirmation links
     /href="(https:\/\/www\.netflix\.com\/[^"]*confirm[^"]*)"/i,
+    // Verify links
     /href="(https:\/\/www\.netflix\.com\/[^"]*verify[^"]*)"/i,
+    // Device/auth links
     /href="(https:\/\/www\.netflix\.com\/[^"]*device[^"]*)"/i,
-    /href="(https:\/\/www\.netflix\.com\/[^"]*travel[^"]*)"/i,
+    // Authenticate links
     /href="(https:\/\/www\.netflix\.com\/[^"]*authenticate[^"]*)"/i,
-    /href="(https:\/\/www\.netflix\.com\/[^"]*action[^"]*)"/i,
-    /href="(https:\/\/www\.netflix\.com\/account[^"]*)"/i,
+    // Account access (sign-in verification)
+    /href="(https:\/\/www\.netflix\.com\/accountaccess[^"]*)"/i,
+    // Any netflix.com/action or netflix.com/validate link
+    /href="(https:\/\/www\.netflix\.com\/[^"]*(?:action|validate|approve|deny)[^"]*)"/i,
   ];
 
   for (const pattern of patterns) {
     const match = html.match(pattern);
-    if (match) return match[1];
+    if (match) return match[1].replace(/&amp;/g, '&');
   }
   return null;
 }
@@ -82,45 +111,72 @@ function extractLink(html: string): string | null {
 function classifyEmail(subject: string, body: string): ParsedEmail['emailType'] {
   const combined = (subject + ' ' + body).toLowerCase();
   
+  // Account change / password change -> SKIP entirely (mark as 'other')
   if (
+    combined.includes('cambiar la información de tu cuenta') ||
+    combined.includes('change your account') ||
+    combined.includes('confirma el cambio en tu cuenta') ||
+    combined.includes('confirm the change to your account')
+  ) {
+    return 'other'; // Will be filtered out
+  }
+
+  // Home confirmation: "Importante: Cómo actualizar tu Hogar con Netflix"
+  if (
+    combined.includes('actualizar el hogar') ||
+    combined.includes('update your home') ||
+    combined.includes('hogar con netflix') ||
+    combined.includes('home with netflix') ||
+    combined.includes('sí, la envié yo') ||
+    combined.includes('yes, i sent this')
+  ) {
+    return 'home_confirmation';
+  }
+
+  // Temp access / travel: "Tu código de acceso temporal de Netflix"
+  if (
+    combined.includes('código de acceso temporal') ||
+    combined.includes('temporary access code') ||
+    combined.includes('acceso temporal') ||
+    combined.includes('temporary access') ||
+    combined.includes('viaje') ||
+    combined.includes('travel') ||
     combined.includes('geolocal') ||
     combined.includes('geo-verification') ||
-    combined.includes('travel') ||
-    combined.includes('viaje') ||
     combined.includes('ubicación') ||
     combined.includes('location') ||
     combined.includes('unusual sign-in') ||
     combined.includes('inicio de sesión inusual') ||
     combined.includes('new device') ||
     combined.includes('nuevo dispositivo') ||
-    combined.includes('confirm your sign-in') ||
-    combined.includes('confirma tu inicio') ||
     combined.includes('verify your identity') ||
-    combined.includes('verifica tu identidad') ||
-    combined.includes('we noticed a new sign-in') ||
-    combined.includes('notado un nuevo inicio')
+    combined.includes('verifica tu identidad')
   ) {
     return 'geo_confirmation';
   }
 
+  // Sign-in code: "Ingresa este código para iniciar sesión"
   if (
+    combined.includes('código de inicio de sesión') ||
+    combined.includes('sign-in code') ||
+    combined.includes('código para iniciar sesión') ||
+    combined.includes('code to sign in') ||
+    combined.includes('ingresa este código') ||
+    combined.includes('enter this code') ||
     combined.includes('verification code') ||
     combined.includes('código de verificación') ||
     combined.includes('verify your email') ||
-    combined.includes('verifica tu correo') ||
-    combined.includes('sign-in code') ||
-    combined.includes('código de inicio')
+    combined.includes('verifica tu correo')
   ) {
     return 'verification';
   }
 
+  // Login alerts
   if (
     combined.includes('new sign-in') ||
     combined.includes('nuevo inicio de sesión') ||
     combined.includes('signed in') ||
-    combined.includes('inició sesión') ||
-    combined.includes('your account') ||
-    combined.includes('tu cuenta')
+    combined.includes('inició sesión')
   ) {
     return 'login_alert';
   }
@@ -128,9 +184,26 @@ function classifyEmail(subject: string, body: string): ParsedEmail['emailType'] 
   return 'other';
 }
 
+function isImportantEmail(emailType: ParsedEmail['emailType'], subject: string): boolean {
+  // Skip marketing emails and account change emails
+  if (emailType === 'other') {
+    const lower = subject.toLowerCase();
+    // These are important "other" emails (home confirmation starts as other before classification)
+    if (
+      lower.includes('importante') ||
+      lower.includes('hogar') ||
+      lower.includes('home')
+    ) {
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
 export async function fetchNetflixEmails(
   config: ImapConfig,
-  since: Date = new Date(Date.now() - 24 * 60 * 60 * 1000) // last 24h by default
+  since: Date = new Date(Date.now() - 24 * 60 * 60 * 1000)
 ): Promise<ParsedEmail[]> {
   const client = new ImapFlow({
     host: config.host,
@@ -151,7 +224,6 @@ export async function fetchNetflixEmails(
     const lock = await client.getMailboxLock('INBOX');
     
     try {
-      // Search for Netflix emails since the given date
       const searchCriteria = {
         since,
         from: 'netflix',
@@ -168,8 +240,12 @@ export async function fetchNetflixEmails(
           if (!isNetflixEmail(fromAddr)) continue;
 
           const bodyText = parsed.text || '';
-          const bodyHtml = parsed.html || '';
+          const bodyHtml = typeof parsed.html === 'string' ? parsed.html : '';
           const subject = parsed.subject || '';
+          const emailType = classifyEmail(subject, bodyText);
+
+          // Skip marketing / promotional emails
+          if (!isImportantEmail(emailType, subject)) continue;
 
           const email: ParsedEmail = {
             messageId: message.envelope.messageId || `${Date.now()}-${Math.random()}`,
@@ -177,9 +253,9 @@ export async function fetchNetflixEmails(
             subject,
             bodyText,
             bodyHtml,
-            code: extractCode(bodyText),
-            link: extractLink(typeof bodyHtml === 'string' ? bodyHtml : ''),
-            emailType: classifyEmail(subject, bodyText),
+            code: extractCode(bodyText, subject),
+            link: extractLink(bodyHtml, subject),
+            emailType,
             receivedAt: message.envelope.date || new Date(),
           };
 
@@ -198,7 +274,6 @@ export async function fetchNetflixEmails(
     throw error;
   }
 
-  // Sort by most recent first
   return emails.sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime());
 }
 
