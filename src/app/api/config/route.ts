@@ -6,5 +6,6 @@ export async function GET() {
     configured,
     user: process.env.IMAP_USER ? process.env.IMAP_USER.replace(/(.{2}).*(@.*)/, '$1***$2') : null,
     pinSet: !!process.env.APP_PIN,
+    provider: 'Gmail',
   });
 }

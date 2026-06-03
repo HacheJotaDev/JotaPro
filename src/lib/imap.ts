@@ -35,8 +35,10 @@ function isNetflixEmail(from: string): boolean {
 }
 
 function extractCode(text: string): string | null {
-  // Netflix verification codes are typically 4-8 digit numbers or alphanumeric
+  // Netflix verification codes are typically 4-8 digit numbers
+  // We look for explicit patterns that indicate a verification code
   const patterns = [
+    // Explicit code patterns with context
     /c[oó]digo[:\s]*(\d{4,8})/i,
     /code[:\s]*(\d{4,8})/i,
     /verification[:\s]*(\d{4,8})/i,
@@ -45,7 +47,10 @@ function extractCode(text: string): string | null {
     /enter[:\s]*(\d{4,8})/i,
     /use[:\s]*(\d{4,8})/i,
     /(?:your|tu|su)\s+(?:code|c[oó]digo|PIN)[:\s]*(\d{4,8})/i,
-    /\b(\d{6})\b/,  // 6-digit code (most common for Netflix)
+    // Netflix specific: code appears in a line by itself or with specific context
+    /(?:verify|verificar|confirm|confirmar)[^\n]*(\d{4,8})/i,
+    // Standalone code on its own line (common in Netflix emails)
+    /(?:^|\n)\s*(\d{6})\s*(?:\n|$)/m,
   ];
 
   for (const pattern of patterns) {
@@ -135,7 +140,6 @@ export async function fetchNetflixEmails(
       user: config.user,
       pass: config.pass,
     },
-    authType: 'LOGIN',
     logger: false as any,
   });
 
@@ -207,14 +211,13 @@ export async function testImapConnection(config: ImapConfig): Promise<{ success:
       user: config.user,
       pass: config.pass,
     },
-    authType: 'LOGIN',
     logger: false as any,
   });
 
   try {
     await client.connect();
     await client.logout();
-    return { success: true, message: 'Conexión exitosa a Hotmail/Outlook' };
+    return { success: true, message: 'Conexión exitosa a Gmail' };
   } catch (error: any) {
     return { success: false, message: `Error de conexión: ${error.message}` };
   }

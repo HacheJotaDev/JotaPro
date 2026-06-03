@@ -2,11 +2,9 @@
 
 Monitor de códigos de verificación de Netflix en tiempo real. Recibe y comparte códigos de geolocalización al instante con tus familiares.
 
-![JotaCode Dashboard](https://img.shields.io/badge/JotaCode-v1.0-red?style=for-the-badge&logo=netflix)
-
 ## Funcionalidades
 
-- **Monitoreo en tiempo real** - Revisa tu correo Hotmail/Outlook cada 30 segundos buscando correos de Netflix
+- **Monitoreo en tiempo real** - Revisa tu correo Gmail cada 30 segundos buscando correos de Netflix
 - **Extracción automática de códigos** - Detecta códigos de verificación de 4-8 dígitos automáticamente
 - **Enlaces de confirmación** - Extrae y muestra enlaces de confirmación de geolocalización
 - **Clasificación inteligente** - Clasifica los correos por tipo: códigos, geolocalización, alertas de inicio de sesión
@@ -18,66 +16,70 @@ Monitor de códigos de verificación de Netflix en tiempo real. Recibe y compart
 
 ## Despliegue en Vercel
 
-### 1. Fork o clona este repositorio
+### Paso 1: Conecta el repo
 
-### 2. Crea una base de datos PostgreSQL
+1. Ve a [vercel.com](https://vercel.com) y haz login
+2. Click en **"Add New Project"**
+3. Importa el repo `HacheJotaDev/JotaPro`
+4. Framework: **Next.js** (se detecta automáticamente)
 
-Usa cualquiera de estos servicios gratuitos:
-- [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres)
-- [Neon](https://neon.tech)
-- [Supabase](https://supabase.com)
+### Paso 2: Crea una base de datos PostgreSQL
 
-### 3. Configura las variables de entorno en Vercel
+Usa [Neon](https://neon.tech) (gratis, sin tarjeta de crédito):
 
-Ve a **Settings > Environment Variables** en tu proyecto de Vercel y agrega:
+1. Crea una cuenta en [neon.tech](https://neon.tech)
+2. Crea un nuevo proyecto
+3. Copia la **connection string** que te da (algo como `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require`)
 
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `DATABASE_URL` | URL de conexión PostgreSQL (pooling) | `postgresql://user:pass@host.neon.tech/db?sslmode=require` |
-| `DIRECT_URL` | URL de conexión PostgreSQL (directa) | `postgresql://user:pass@host.neon.tech/db?sslmode=require` |
-| `IMAP_USER` | Tu correo de Hotmail/Outlook | `tu_correo@hotmail.com` |
-| `IMAP_PASS` | Contraseña de aplicación de Outlook | `abcd efgh ijkl mnop` |
-| `APP_PIN` | PIN de acceso al dashboard | `7788` |
+### Paso 3: Configura las variables de entorno en Vercel
 
-### 4. Obtener la contraseña de aplicación de Outlook
+En tu proyecto de Vercel ve a **Settings > Environment Variables** y agrega estas 5 variables:
 
-1. Ve a [https://account.live.com/proofs/AppPassword](https://account.live.com/proofs/AppPassword)
-2. Inicia sesión con tu cuenta de Microsoft
-3. Crea una nueva contraseña de aplicación
-4. Usa esta contraseña en la variable `IMAP_PASS`
+| Variable | Valor |
+|----------|-------|
+| `DATABASE_URL` | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` |
+| `DIRECT_URL` | `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require` (igual que arriba) |
+| `IMAP_USER` | `henryofc17@gmail.com` |
+| `IMAP_PASS` | `xdohiqffrtfcndiz` |
+| `APP_PIN` | `7788` |
 
-### 5. Deploy
+### Paso 4: Deploy
 
-```bash
-# Con Vercel CLI
-vercel --prod
+Click en **"Deploy"** y listo. Vercel detecta Next.js y configura todo automáticamente.
 
-# O simplemente conecta tu repo de GitHub en vercel.com
-```
+### Paso 5: Push del schema a la base de datos
 
-Vercel detectará automáticamente Next.js y configurará el build.
-
-## Desarrollo local
+Después del primer deploy, necesitas crear las tablas en la base de datos. En tu terminal local:
 
 ```bash
-# Instalar dependencias
-npm install
+# Instala Vercel CLI si no lo tienes
+npm i -g vercel
 
-# Configurar .env (copia .env.example)
-cp .env.example .env
-# Edita .env con tus credenciales
+# Conecta tu proyecto local
+vercel link
+
+# Descarga las variables de entorno
+vercel env pull .env
 
 # Push del schema a la base de datos
 npx prisma db push
-
-# Ejecutar en desarrollo
-npm run dev
 ```
+
+## Habilitar IMAP en Gmail
+
+Si necesitas crear una nueva contraseña de aplicación:
+
+1. Ve a [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+2. Selecciona "Correo" como app
+3. Genera la contraseña
+4. Usa los 16 caracteres (sin espacios) como `IMAP_PASS`
+
+**Nota:** Tu cuenta de Google debe tener verificación en 2 pasos activada para generar contraseñas de aplicación.
 
 ## Uso
 
-1. Abre la web en tu navegador
-2. Ingresa el PIN configurado (`APP_PIN`)
+1. Abre la URL que te da Vercel
+2. Ingresa el PIN: **7788**
 3. El dashboard mostrará los correos de Netflix con códigos
 4. Comparte la URL y el PIN con tus familiares para que puedan ver los códigos
 
@@ -88,7 +90,7 @@ npm run dev
 - **Tailwind CSS 4** - Estilos
 - **shadcn/ui** - Componentes UI
 - **Prisma** - ORM de base de datos (PostgreSQL)
-- **imapflow** - Conexión IMAP
+- **imapflow** - Conexión IMAP a Gmail
 - **mailparser** - Parsing de correos
 
 ## Licencia

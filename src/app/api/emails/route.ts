@@ -3,7 +3,7 @@ import { fetchNetflixEmails, testImapConnection, type ImapConfig } from '@/lib/i
 import { db } from '@/lib/db';
 
 const IMAP_CONFIG: ImapConfig = {
-  host: 'outlook.office365.com',
+  host: 'imap.gmail.com',
   port: 993,
   user: process.env.IMAP_USER || '',
   pass: process.env.IMAP_PASS || '',

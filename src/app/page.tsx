@@ -583,7 +583,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <p className="text-sm text-amber-200 font-medium">Conexión IMAP no disponible</p>
                 <p className="text-xs text-amber-400/70 mt-1">{imapWarning}</p>
                 <p className="text-xs text-amber-500/50 mt-2">
-                  Para configurar: asegúrate de que la contraseña de aplicación IMAP sea correcta y que el acceso IMAP esté habilitado en tu cuenta de Outlook.
+                  Para configurar: asegúrate de que la contraseña de aplicación de Gmail sea correcta y que el acceso IMAP esté habilitado en tu cuenta de Google.
                 </p>
               </div>
               <Button
